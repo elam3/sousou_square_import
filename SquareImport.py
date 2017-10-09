@@ -54,7 +54,8 @@ def main():
     ]
     writer.writerow(header)
 # parse input csv file
-    with open('up10.5.csv', 'r') as file_in:
+    input_filename = sys.argv[1]
+    with open(input_filename, 'r') as file_in:
         reader = csv.reader(file_in)
         productMap = dict() # sku -> count
         for row in reader:
@@ -110,8 +111,8 @@ def main():
         row = [
             '',                 # Token
             post_title,         # Item Name
-            #'',                 # Description
-            #'',                 # Category
+            '',                 # Description
+            '',                 # Category
             sku13,              # SKU
             size_code,          # Variation Name
             price,              # Price
