@@ -26,6 +26,33 @@ def main():
 # open mysql connection
     db = MySQLdb.connect(user=DB_USER, passwd=DB_PW, db=DB_NAME)
     cnx = db.cursor()
+# output csv file
+    file_out = open('up2sqr.csv', 'w')
+    writer = csv.writer(file_out)
+    header = [
+        'Token',
+        'Item Name',
+        'Description',
+        'Category',
+        'SKU',
+        'Variation Name',
+        'Price',
+        'Enabled Chinatsu Komori',
+        'Current Quantity Chinatsu Komori',
+        'New Quantity Chinatsu Komori',
+        'Stock Alert Enabled Chinatsu Komori',
+        'Stock Alert Count Chinatsu Komori',
+        'Price Chinatsu Komori',
+        'Enabled Fort Mason Center',
+        'Current Quantity Fort Mason Center',
+        'New Quantity Fort Mason Center',
+        'Stock Alert Enabled Fort Mason Center',
+        'Stock Alert Count Fort Mason Center',
+        'Price Fort Mason Center',
+        'Tax - CA 8.75% (8.75%)',
+        'Tax - CA 8.5% (8.5%)'
+    ]
+    writer.writerow(header)
 # parse input csv file
     with open('up10.5.csv', 'r') as file_in:
         reader = csv.reader(file_in)
@@ -46,8 +73,8 @@ def main():
         size_code = sku13[10:12]
         checksum = sku13[12:13]
         sku11 = sku13[1:12]
-        print(f"{line_num}: {sku13} -> {prefix_num} {prod_code} {color_code} {size_code} {checksum}. {sku11}")
 
+        # find post_id; potential error
         post_id = getPostID(cnx,sku13)
         if len(post_id) == 0:
             post_id = getPostID(cnx,sku11)
@@ -57,17 +84,116 @@ def main():
             print(f"Error: No matching sku for '{sku13}'")
             continue
 
+        # get product name
         post_type = getPostType(cnx,post_id)
         if post_type == "product_variation":
             post_id = getPostParent(cnx,post_id)
         post_title = getPostTitle(cnx,post_id)
-        print(f"\tPostTitle: {post_title}")
+
+        # get price
+        price = getPrice(cnx,post_id)
+        if len(price) == 0:
+            print(f"Error: price not found for post_id {post_id}, sku {sku13}")
+
+# Updates to WordPress Database
+# Need to update the stock, sku#
+# TODO mark products(simple/variable) as instock
+        # Update Stock
+        addStockToWordPress(cnx,post_id,qty)
+        # Update SKU number on WordPress
+        updateSKUNumberOnWordPress(cnx,sku13,post_id)
+        # Update Stock Status
+        updateStockStatus(cnx,post_id)
+
+
+        # csv row
+        row = [
+            '',                 # Token
+            post_title,         # Item Name
+            #'',                 # Description
+            #'',                 # Category
+            sku13,              # SKU
+            size_code,          # Variation Name
+            price,              # Price
+            'Y',                # Enabled Chinatsu Komori
+            '',                 # Current Quantity Chinatsu Komori
+            '',                 # New Quantity Chinatsu Komori
+            '',                 # Stock Alert Enabled Chinatsu Komori
+            '',                 # Stock Alert Count Chinatsu Komori
+            '',                 # Price Chinatsu Komori
+            'N',                # Enabled Fort Mason Center
+            '',                 # Current Quantity Fort Mason Center
+            '',                 # New Quantity Fort Mason Center
+            '',                 # Stock Alert Enabled Fort Mason Center
+            '',                 # Stock Alert Count Fort Mason Center
+            '',                 # Price Fort Mason Center
+            '',                 # Tax - CA 8.75% (8.75%)
+            'Y'                 # Tax - CA 8.5% (8.5%)
+        ] # row list
+        print(row)
+
+        writer.writerow(row)
 
 # display productMap
-    pp = pprint.PrettyPrinter(indent=2)
+    #pp = pprint.PrettyPrinter(indent=2)
     #pp.pprint(productMap)
 # exit procedures
+    file_out.close()
     db.close()
+
+
+def addStockToWordPress(cnx,post_id,qty):
+    cnx.execute(f'''
+SELECT meta_value
+FROM wp_postmeta
+WHERE meta_key = '_stock'
+    AND post_id = '{post_id}'
+LIMIT 1;
+''')
+    wp_stock = cnx.fetchall()[0][0] # assume str type
+    if len(wp_stock) == 0:
+        wp_stock = 0
+    elif int(wp_stock) < 0:
+        print(f"Error: negative stock count for post_id {post_id}: stock {wp_stock}")
+        wp_stock = 0
+    new_qty = int(wp_stock) + qty
+    cnx.execute(f'''
+UPDATE wp_postmeta
+SET meta_value = '{new_qty}'
+WHERE meta_key = '_stock'
+    AND post_id = '{post_id}';
+''')
+
+
+def updateSKUNumberOnWordPress(cnx,sku13,post_id):
+    cnx.execute(f'''
+UPDATE wp_postmeta
+SET meta_value = '{sku13}'
+WHERE meta_key = '_sku'
+    AND post_id = '{post_id}';
+''')
+
+
+def updateStockStatus(cnx,post_id):
+    cnx.execute(f'''
+UPDATE wp_postmeta
+SET meta_value = 'instock'
+WHERE meta_key = '_stock_status'
+    AND post_id = '{post_id}';
+''')
+
+
+def getPrice(cnx,post_id):
+    query = f'''
+SELECT meta_value
+FROM wp_postmeta
+WHERE meta_key = '_price'
+    AND post_id = '{post_id}'
+LIMIT 1;
+'''
+    cnx.execute(query)
+    price = cnx.fetchall()[0][0]
+    return str(price)
 
 
 def getPostParent(cnx,post_id):
