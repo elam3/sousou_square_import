@@ -6,3 +6,4 @@ venv/*
 up10.5.csv
 up2sqr.csv
 TODO
+*.csv
