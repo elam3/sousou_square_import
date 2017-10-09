@@ -9,3 +9,21 @@ DESCRIPTION
     to tally each product and push the data to WordPress. Then finally produce
     a CSV file used to upload to squareup.com.
 
+
+## Setting up 
+### the environment
+```
+python3 -m venv ./venv/square_import
+ln -s ./venv/square_import/bin/activate .
+. activate 
+pip install -r pip_reqs.txt
+```
+### .env file
+`touch .env`
+
+contents of the file:
+```
+DB_USER='user_name'
+DB_PW='the_password'
+DB_NAME='name_of_database'
+```
